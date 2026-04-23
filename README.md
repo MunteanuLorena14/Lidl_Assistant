@@ -1,6 +1,6 @@
 # The Seed Project
 
-A Python application combining AI assistant and SQLite database for Carrefour Cluj-Vivo inventory management.
+A Python application combining AI assistant and SQLite database for Lidl inventory management.
 
 ## Setup
 
