@@ -1,0 +1,6 @@
+virtual_env/
+.env
+__pycache__/
+*.pyc
+conversation.json
+inventar.db
