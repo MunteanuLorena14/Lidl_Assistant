@@ -1,4 +1,6 @@
-# The Seed Project
+# Lidl Assistant
+
+![Lidl Assistant](assets/screenshot.png)
 
 A Python application combining AI assistant and SQLite database for Lidl inventory management.
 
