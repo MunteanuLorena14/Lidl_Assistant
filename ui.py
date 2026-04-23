@@ -4,7 +4,8 @@ from PySide6.QtWidgets import (
     QHBoxLayout, QPushButton, QLineEdit, QTextEdit, 
     QLabel, QStackedWidget, QFrame
 )
-from PySide6.QtCore import QThread, Signal
+from PySide6.QtCore import QThread, Signal, Qt
+from PySide6.QtGui import QPixmap
 from llm import chat
 from database import create_tables, seed_data, search_products
 
@@ -37,11 +38,21 @@ class MainWindow(QMainWindow):
 
         # Header
         header = QFrame()
-        header.setStyleSheet("background-color: #004F9F; padding: 12px;")
+        header.setStyleSheet("background-color: #004F9F; padding: 4px 12px;")
         header_layout = QHBoxLayout(header)
+
         title = QLabel("Lidl Assistant")
         title.setStyleSheet("color: white; font-size: 18px; font-weight: bold;")
         header_layout.addWidget(title)
+
+        header_layout.addStretch()
+
+        logo_label = QLabel()
+        pixmap = QPixmap("assets/lidl_logo.png")
+        scaled_pixmap = pixmap.scaled(100, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        logo_label.setPixmap(scaled_pixmap)
+        header_layout.addWidget(logo_label)
+
         main_layout.addWidget(header)
 
         # Navigation
