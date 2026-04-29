@@ -1,7 +1,7 @@
 import sys
 from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, 
-    QHBoxLayout, QPushButton, QLineEdit, QTextEdit, 
+    QApplication, QMainWindow, QWidget, QVBoxLayout,
+    QHBoxLayout, QPushButton, QLineEdit, QTextEdit,
     QLabel, QStackedWidget, QFrame
 )
 from PySide6.QtCore import QThread, Signal, Qt
@@ -18,6 +18,19 @@ class AIThread(QThread):
 
     def run(self):
         response = chat(self.user_input)
+        self.response_ready.emit(response)
+
+
+class AgentThread(QThread):
+    response_ready = Signal(str)
+
+    def __init__(self, user_input):
+        super().__init__()
+        self.user_input = user_input
+
+    def run(self):
+        from agent import run_agent
+        response = run_agent(self.user_input)
         self.response_ready.emit(response)
 
 
@@ -64,8 +77,9 @@ class MainWindow(QMainWindow):
 
         self.btn_chat = QPushButton("AI Assistant")
         self.btn_db = QPushButton("Database")
+        self.btn_agent = QPushButton("Store Manager")
 
-        for btn in [self.btn_chat, self.btn_db]:
+        for btn in [self.btn_chat, self.btn_db, self.btn_agent]:
             btn.setStyleSheet("""
                 QPushButton {
                     padding: 12px 24px;
@@ -79,8 +93,10 @@ class MainWindow(QMainWindow):
 
         self.btn_chat.clicked.connect(lambda: self.switch_tab(0))
         self.btn_db.clicked.connect(lambda: self.switch_tab(1))
+        self.btn_agent.clicked.connect(lambda: self.switch_tab(2))
         nav_layout.addWidget(self.btn_chat)
         nav_layout.addWidget(self.btn_db)
+        nav_layout.addWidget(self.btn_agent)
         nav_layout.addStretch()
         main_layout.addWidget(nav)
 
@@ -89,6 +105,7 @@ class MainWindow(QMainWindow):
         self.stack.setStyleSheet("background: #004F9F;")
         self.stack.addWidget(self.build_chat_page())
         self.stack.addWidget(self.build_db_page())
+        self.stack.addWidget(self.build_agent_page())
         main_layout.addWidget(self.stack)
 
         self.switch_tab(0)
@@ -99,6 +116,7 @@ class MainWindow(QMainWindow):
         inactive = "padding: 12px 24px; border: none; font-size: 14px; background: #FFD700; color: #333;"
         self.btn_chat.setStyleSheet(active if index == 0 else inactive)
         self.btn_db.setStyleSheet(active if index == 1 else inactive)
+        self.btn_agent.setStyleSheet(active if index == 2 else inactive)
 
     def build_chat_page(self):
         page = QWidget()
@@ -248,6 +266,80 @@ class MainWindow(QMainWindow):
 
         text += "</table>"
         self.db_results.setHtml(text)
+
+    def build_agent_page(self):
+        page = QWidget()
+        page.setStyleSheet("background: #004F9F;")
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(16, 16, 16, 16)
+
+        self.agent_display = QTextEdit()
+        self.agent_display.setReadOnly(True)
+        self.agent_display.setStyleSheet("""
+            background: #004F9F;
+            color: white;
+            border: 1px solid #003d7a;
+            border-radius: 8px;
+            padding: 8px;
+            font-size: 14px;
+        """)
+        self.agent_display.append("<b style='color:#FFD700'>Store Manager:</b> <span style='color:white'>Hello! Tell me anything about your store. I can update stock, show statistics and more!</span>")
+        layout.addWidget(self.agent_display)
+
+        input_row = QHBoxLayout()
+        self.agent_input = QLineEdit()
+        self.agent_input.setPlaceholderText("e.g. I sold 10 units of Lapte Zuzu today...")
+        self.agent_input.setStyleSheet("""
+            padding: 10px;
+            border: 1px solid #003d7a;
+            border-radius: 8px;
+            font-size: 14px;
+            background: #003d7a;
+            color: white;
+        """)
+        self.agent_input.returnPressed.connect(self.send_agent_message)
+
+        agent_btn = QPushButton("Send")
+        agent_btn.setStyleSheet("""
+            QPushButton {
+                padding: 10px 20px;
+                background: #FFD700;
+                color: black;
+                border-radius: 8px;
+                font-size: 14px;
+                font-weight: bold;
+                border: none;
+            }
+            QPushButton:hover { background: #e6c200; }
+        """)
+        agent_btn.clicked.connect(self.send_agent_message)
+
+        input_row.addWidget(self.agent_input)
+        input_row.addWidget(agent_btn)
+        layout.addLayout(input_row)
+
+        return page
+
+    def send_agent_message(self):
+        user_input = self.agent_input.text().strip()
+        if not user_input:
+            return
+
+        self.agent_display.append(f"<b style='color:#FFD700'>You:</b> <span style='color:white'>{user_input}</span>")
+        self.agent_input.clear()
+        self.agent_display.append("<i style='color:#aaa'>Store Manager is thinking...</i>")
+
+        self.agent_thread = AgentThread(user_input)
+        self.agent_thread.response_ready.connect(self.show_agent_response)
+        self.agent_thread.start()
+
+    def show_agent_response(self, response):
+        cursor = self.agent_display.textCursor()
+        cursor.movePosition(cursor.MoveOperation.End)
+        cursor.select(cursor.SelectionType.BlockUnderCursor)
+        cursor.removeSelectedText()
+        cursor.deletePreviousChar()
+        self.agent_display.append(f"<b style='color:#FFD700'>Store Manager:</b> <span style='color:white'>{response}</span>")
 
 
 if __name__ == "__main__":

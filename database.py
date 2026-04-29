@@ -10,7 +10,7 @@ def get_connection():
 def create_tables():
     conn = get_connection()
     cursor = conn.cursor()
-    
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS produse (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -20,23 +20,23 @@ def create_tables():
             stoc INTEGER NOT NULL
         )
     """)
-    
+
     conn.commit()
     conn.close()
-    print("Tabel creat cu succes!")
+    print("Table created successfully!")
 
 def seed_data():
     conn = get_connection()
     cursor = conn.cursor()
-    
+
     cursor.execute("SELECT COUNT(*) FROM produse")
     count = cursor.fetchone()[0]
-    
+
     if count > 0:
-        print("Datele există deja!")
+        print("Data already exists!")
         conn.close()
         return
-    
+
     produse = [
         ("Lapte Zuzu 1L", "Lactate", 6.99, 150),
         ("Iaurt Danone 400g", "Lactate", 8.49, 80),
@@ -59,35 +59,133 @@ def seed_data():
         ("Ciocolata Milka 100g", "Dulciuri", 8.99, 200),
         ("Chips-uri Lays 150g", "Snacks", 9.99, 180),
     ]
-    
+
     cursor.executemany("""
         INSERT INTO produse (nume, categorie, pret, stoc)
         VALUES (?, ?, ?, ?)
     """, produse)
-    
+
     conn.commit()
     conn.close()
-    print(f"Au fost adăugate {len(produse)} produse!")
+    print(f"{len(produse)} products added successfully!")
 
 def search_products(query):
     conn = get_connection()
     cursor = conn.cursor()
-    
+
     cursor.execute("""
         SELECT * FROM produse
         WHERE nume LIKE ? OR categorie LIKE ?
     """, (f"%{query}%", f"%{query}%"))
-    
+
     results = cursor.fetchall()
     conn.close()
     return results
 
+def get_all_products():
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM produse ORDER BY categorie, nume")
+    results = cursor.fetchall()
+    conn.close()
+    return results
+
+def get_database_schema():
+    schema = """
+    Table: produse
+    Columns:
+        - id (INTEGER, PRIMARY KEY, AUTOINCREMENT)
+        - nume (TEXT) - product name
+        - categorie (TEXT) - product category
+        - pret (REAL) - price in RON
+        - stoc (INTEGER) - current stock quantity
+    """
+    return schema.strip()
+
+def get_inventory_stats():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT COUNT(*) as total_products FROM produse")
+    total = cursor.fetchone()["total_products"]
+
+    cursor.execute("SELECT SUM(pret * stoc) as total_value FROM produse")
+    total_value = cursor.fetchone()["total_value"]
+
+    cursor.execute("SELECT categorie, COUNT(*) as count, SUM(stoc) as total_stoc FROM produse GROUP BY categorie")
+    by_category = cursor.fetchall()
+
+    cursor.execute("SELECT * FROM produse WHERE stoc < 50 ORDER BY stoc ASC")
+    low_stock = cursor.fetchall()
+
+    conn.close()
+    return {
+        "total_products": total,
+        "total_inventory_value": round(total_value, 2),
+        "by_category": [dict(row) for row in by_category],
+        "low_stock_items": [dict(row) for row in low_stock]
+    }
+
+def execute_sql(sql, params=None):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+        if params:
+            cursor.execute(sql, params)
+        else:
+            cursor.execute(sql)
+
+        if sql.strip().upper().startswith("SELECT"):
+            results = cursor.fetchall()
+            conn.close()
+            return [dict(row) for row in results]
+        else:
+            conn.commit()
+            affected = cursor.rowcount
+            conn.close()
+            return {"affected_rows": affected}
+
+    except Exception as e:
+        conn.close()
+        return {"error": str(e)}
+
+
+def execute_sql_batch(statements):
+    """
+    Execute a list of SQL statements atomically (single transaction).
+
+    Each statement must be a single SQL statement (no semicolon-separated scripts).
+    Returns {"results": [...]} on success or {"error": "..."} on failure (rolled back).
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    results = []
+
+    try:
+        conn.execute("BEGIN")
+
+        for sql in statements:
+            cursor.execute(sql)
+
+            if sql.strip().upper().startswith("SELECT"):
+                rows = cursor.fetchall()
+                results.append([dict(row) for row in rows])
+            else:
+                results.append({"affected_rows": cursor.rowcount})
+
+        conn.commit()
+        conn.close()
+        return {"results": results}
+
+    except Exception as e:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        conn.close()
+        return {"error": str(e)}
+
 if __name__ == "__main__":
     create_tables()
     seed_data()
-    
-    # Test search
-    # print("\nTest căutare 'Lactate':")
-    # rezultate = search_products("Lactate")
-    # for produs in rezultate:
-    #     print(f"  {produs['nume']} - {produs['pret']} RON - Stoc: {produs['stoc']}")
